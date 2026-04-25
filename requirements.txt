@@ -1,0 +1,9 @@
+pandas
+openpyxl
+pdfplumber
+python-docx
+groq
+instructor
+pydantic
+python-dotenv
+tqdm
