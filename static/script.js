@@ -3,11 +3,13 @@ const dropZone = document.getElementById('dropZone');
 const fileInput = document.getElementById('fileInput');
 const analyzeBtn = document.getElementById('analyzeBtn');
 const folderPathInput = document.getElementById('folderPath');
+const uploadModule = document.getElementById('uploadModule');
 const resultsSection = document.getElementById('resultsSection');
 const resultsTableBody = document.querySelector('#resultsTable tbody');
 const loader = document.getElementById('loader');
 const countVal = document.getElementById('countVal');
 const downloadBtn = document.getElementById('downloadBtn');
+const resetBtn = document.getElementById('resetBtn');
 
 const progressContainer = document.getElementById('progressContainer');
 const progressBar = document.getElementById('progressBar');
@@ -110,6 +112,13 @@ downloadBtn.addEventListener('click', () => {
     }
 });
 
+resetBtn.addEventListener('click', () => {
+    resultsSection.style.display = 'none';
+    uploadModule.style.display = 'flex';
+    folderPathInput.value = '';
+    fileInput.value = '';
+});
+
 function renderResults(results) {
     resultsSection.style.display = 'block';
     resultsTableBody.innerHTML = '';
@@ -135,6 +144,7 @@ function updateProgress(current, total, file) {
 }
 
 function startLoading() {
+    uploadModule.style.display = 'none';
     progressContainer.style.display = 'block';
     progressBar.style.width = '0%';
     percentText.textContent = '0%';
@@ -144,7 +154,7 @@ function startLoading() {
 }
 
 function stopLoading() {
-    // We don't hide the progress bar immediately to show 100% completion
+    // Hide progress bar after completion
     setTimeout(() => {
         progressContainer.style.display = 'none';
     }, 1000);

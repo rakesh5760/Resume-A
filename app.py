@@ -11,6 +11,8 @@ CORS(app)
 
 # Ensure upload directory exists
 UPLOAD_FOLDER = 'uploads'
+MASTER_REPORT = 'master_report.xlsx'
+
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 
@@ -64,14 +66,23 @@ def analyze():
                 if should_delete and os.path.exists(f_path):
                     os.remove(f_path)
 
-        # Final result and Excel generation
-        excel_name = f"analysis_{datetime.now().strftime('%H%M%S')}.xlsx"
-        pd.DataFrame(results).to_excel(excel_name, index=False)
+        # Master Report Logic
+        new_df = pd.DataFrame(results)
+        if os.path.exists(MASTER_REPORT):
+            try:
+                existing_df = pd.read_excel(MASTER_REPORT)
+                combined_df = pd.concat([existing_df, new_df], ignore_index=True)
+            except:
+                combined_df = new_df
+        else:
+            combined_df = new_df
+            
+        combined_df.to_excel(MASTER_REPORT, index=False)
         
         final_data = {
             "type": "done",
             "results": results,
-            "excel_file": excel_name
+            "excel_file": MASTER_REPORT
         }
         yield f"data: {json.dumps(final_data)}\n\n"
 
