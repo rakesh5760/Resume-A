@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Resume Intelligence AI</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div style="display: inline-block; padding: 12px; background: rgba(99,102,241,0.1); border-radius: 16px; margin-bottom: 1rem;">
+                <i data-lucide="scan-line" style="color: #6366f1; width: 32px; height: 32px;"></i>
+            </div>
+            <h1>Resume Analyzer<span style="color: #6366f1;">.</span>IO</h1>
+            <p class="subtitle">Precision-driven career intelligence powered by Groq & Llama-3.3</p>
+        </header>
+
+        <main class="glass-card">
+            <div class="upload-section" id="uploadModule">
+                <div class="drop-zone" id="dropZone">
+                    <i data-lucide="cloud-upload"></i>
+                    <p style="font-size: 1.25rem; font-weight: 600;">Drag & Drop Resumes</p>
+                    <p style="color: var(--text-muted);">or click to browse PDF/DOCX files</p>
+                    <input type="file" id="fileInput" multiple style="display: none;" accept=".pdf,.docx">
+                </div>
+
+                <div style="display: flex; align-items: center; width: 100%; max-width: 600px; gap: 1rem; color: var(--text-muted);">
+                    <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+                    <span>OR USE LOCAL FOLDER</span>
+                    <div style="flex: 1; height: 1px; background: rgba(255,255,255,0.1);"></div>
+                </div>
+
+                <div class="path-input">
+                    <input type="text" id="folderPath" placeholder="C:\Users\Name\Documents\Resumes">
+                    <button id="analyzeBtn">Process Folder</button>
+                </div>
+            </div>
+
+            <div id="loader" class="loader"></div>
+
+            <!-- Progress Bar -->
+            <div id="progressContainer" style="display: none; width: 100%; max-width: 600px; margin: 2rem auto;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 0.8rem; font-size: 0.95rem; font-weight: 600;">
+                    <span id="progressText" style="color: var(--text-muted);">Initializing Engine...</span>
+                    <span id="percentText" style="color: var(--primary);">0%</span>
+                </div>
+                <div style="height: 10px; background: rgba(255,255,255,0.05); border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05);">
+                    <div id="progressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, var(--primary), #818cf8); transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 0 15px var(--primary-glow);"></div>
+                </div>
+            </div>
+
+            <div class="results-section" id="resultsSection">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <p style="color: var(--text-muted); margin: 0;">Resumes Found</p>
+                        <div class="stat-value" id="countVal">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <button id="downloadBtn" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <i data-lucide="file-spreadsheet"></i>
+                            Download Excel
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-wrapper">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Role History</th>
+                                <th>Skills Summary</th>
+                                <th>Experience</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>

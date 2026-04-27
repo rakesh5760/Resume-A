@@ -9,6 +9,8 @@ import instructor
 from groq import Groq
 from dotenv import load_dotenv
 from tqdm import tqdm
+from dateutil import parser as date_parser
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 # Load API Key
 load_dotenv()
@@ -18,7 +20,7 @@ if not GROQ_API_KEY:
     print("Error: GROQ_API_KEY not found in .env file.")
     exit(1)
 
-# Initialize instructor client with Groq
+# Initialize instructor client
 client = instructor.from_groq(Groq(api_key=GROQ_API_KEY), mode=instructor.Mode.TOOLS)
 
 # =========================
@@ -28,86 +30,80 @@ client = instructor.from_groq(Groq(api_key=GROQ_API_KEY), mode=instructor.Mode.T
 class JobEntry(BaseModel):
     role: str = Field(description="Role title")
     company: str = Field(description="Company name")
-    start_date: str = Field(description="YYYY-MM-DD")
-    end_date: str = Field(description="YYYY-MM-DD or 'Present'")
-    description: str = Field(description="Job description/responsibilities")
+    start_date: str = Field(description="Start date (any format)")
+    end_date: str = Field(description="End date (any format) or 'Present'")
+    description: str = Field(description="Job description tasks")
     type: Literal["Full-Time", "Internship", "Contract"]
-    skills: List[str] = Field(description="Normalized skill names mentioned in THIS description section")
+    skills: List[str] = Field(description="Canonical skills found in THIS entry")
 
 class ProjectEntry(BaseModel):
     name: str = Field(description="Project name")
-    description: str = Field(description="Project summary")
-    skills: List[str] = Field(description="Normalized skill names mentioned in THIS project description")
+    description: str = Field(description="Summary of project")
+    skills: List[str] = Field(description="Canonical skills found in THIS project")
 
-class PreciseResumeData(BaseModel):
+class ResumeDataV5(BaseModel):
     name: Optional[str] = None
     email: Optional[str] = None
     phone: Optional[str] = None
-    linkedin: Optional[str] = Field(description="ONLY full URL (https://www.linkedin.com/in/...). Return null if not found.", default=None)
+    linkedin: Optional[str] = Field(description="LinkedIn URL or profile handle", default=None)
     location: Optional[str] = None
     current_title: Optional[str] = None
     last_graduation_date: Optional[str] = None
     first_job_start_date: Optional[str] = None
-    all_found_skills: List[str] = Field(description="Unique list of ALL skills found in Skills section, Experience, or Projects. Group variations (e.g., Python3 -> Python, MySQL -> SQL).")
+    skills_list: List[str] = Field(description="List of skills from the 'Skills' section", default_factory=list)
     jobs: List[JobEntry] = Field(default_factory=list)
     projects: List[ProjectEntry] = Field(default_factory=list)
 
 # =========================
-# 2. Calculation & Grouping Logic
+# 2. Robust Calculation Logic
 # =========================
 
-def get_job_interval(job: JobEntry):
+def safe_parse_date(date_str):
+    if not date_str: return None
+    if date_str.lower() == "present": return datetime.today()
     try:
-        start = datetime.strptime(job.start_date, "%Y-%m-%d")
-        end = datetime.today() if job.end_date.lower() == "present" else datetime.strptime(job.end_date, "%Y-%m-%d")
-        return (start, end) if start < end else None
+        return date_parser.parse(str(date_str))
     except:
         return None
+
+def get_interval(entry: JobEntry):
+    s = safe_parse_date(entry.start_date)
+    e = safe_parse_date(entry.end_date)
+    if s and e and s < e: return (s, e)
+    return None
 
 def merge_intervals(intervals):
     if not intervals: return 0
     intervals.sort()
     merged = [intervals[0]]
-    for cur_s, cur_e in intervals[1:]:
-        prev_s, prev_e = merged[-1]
-        if cur_s <= prev_e:
-            merged[-1] = (prev_s, max(prev_e, cur_e))
+    for s, e in intervals[1:]:
+        p_s, p_e = merged[-1]
+        if s <= p_e:
+            merged[-1] = (p_s, max(p_e, e))
         else:
-            merged.append((cur_s, cur_e))
+            merged.append((s, e))
     
-    total_months = 0
+    total = 0
     for s, e in merged:
-        total_months += (e.year - s.year) * 12 + (e.month - s.month)
-    return total_months
+        total += (e.year - s.year) * 12 + (e.month - s.month)
+    return total
 
 def format_duration(months):
-    y = months // 12
-    m = months % 12
-    return f"{y} years {m} months"
+    return f"{months // 12}y {months % 12}m"
 
 def group_skills_by_metrics(skill_data):
-    """
-    Groups skills by common (months, project_count).
-    skill_data: list of {'name': str, 'months': int, 'projects': int}
-    """
     groups = {}
     for s in skill_data:
         key = (s['months'], s['projects'])
-        if key not in groups:
-            groups[key] = []
+        if key not in groups: groups[key] = []
         groups[key].append(s['name'])
     
-    # Sort keys: Highest experience (months) first, then project count
     sorted_keys = sorted(groups.keys(), key=lambda x: (x[0], x[1]), reverse=True)
-    
-    output_lines = []
+    lines = []
     for k in sorted_keys:
-        months, projects = k
-        skills_str = ", ".join(sorted(groups[k]))
-        duration_str = format_duration(months)
-        output_lines.append(f"{skills_str} – {duration_str} – {projects} projects")
-    
-    return "\n".join(output_lines) if output_lines else "-"
+        m, p = k
+        lines.append(f"{', '.join(sorted(groups[k]))} – {format_duration(m)} – {p} projects")
+    return "\n".join(lines) if lines else "-"
 
 # =========================
 # 3. Extraction logic
@@ -122,125 +118,108 @@ def extract_text(file_path):
                 for page in pdf.pages: text += (page.extract_text() or "") + "\n"
         elif ext == ".docx":
             doc = Document(file_path)
-            text = "\n".join([para.text for para in doc.paragraphs])
+            text = "\n".join([pa.text for pa in doc.paragraphs])
     except Exception as e:
-        print(f"Read error: {e}")
+        print(f"Read error {file_path}: {e}")
     return text.strip()
 
-def analyze_resume_v4(text):
-    if not text.strip(): return None
-    try:
-        return client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": """You are Resume Parser v5 (STRICT ACCURACY).
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+def analyze_resume_v5(text):
+    if not text: return None
+    return client.chat.completions.create(
+        model="llama-3.3-70b-versatile",
+        messages=[
+            {"role": "system", "content": """Strict Resume Parser v5. Accuracy > Completeness. LinkedIn, Skills, Dates normalization rules apply."""},
+            {"role": "user", "content": f"Extract resume data:\n\n{text}"}
+        ],
+        response_model=ResumeDataV5
+    )
 
-LINKEDIN RULES:
-- Extract the LinkedIn URL EXACTLY as it appears.
-- If it starts with 'linkedin.com', it is valid.
-- If ONLY the word 'LinkedIn' is found without a specific profile handle or URL, return null.
+# =========================
+# 4. Core Process (For Web/CLI)
+# =========================
 
-TITLE RULES:
-- Extract 'Current Title' and 'Candidate Name' EXACTLY as written in the resume. DO NOT summarize or rephrase.
+def process_single_resume(f_path):
+    raw_text = extract_text(f_path)
+    if not raw_text: return None
+    
+    data = analyze_resume_v5(raw_text)
+    if not data: return None
 
-SKILL RULES:
-- SOURCE: Check Skills, Experience, and Projects sections.
-- NORMALIZATION: Group variations (e.g., Python3 -> Python, MySQL -> SQL).
-- mapping: Only map skill to job/project if mentioned in that specific description.
-"""},
-                {"role": "user", "content": f"Analyze this resume precisely:\n\n{text}"}
-            ],
-            response_model=PreciseResumeData
-        )
-    except Exception as e:
-        print(f"API Error: {e}")
-        return None
+    # Robust LinkedIn
+    li = data.linkedin or "-"
+    if li != "-" and not li.startswith("http"):
+        if "linkedin.com" in li:
+            li = "https://" + li.split("linkedin.com")[-1] if not li.startswith("linkedin.com") else "https://" + li
+        else:
+            li = "-"
 
-def main():
-    folder = input("Enter resumes folder path: ").strip()
-    if not os.path.exists(folder): return
+    # Combine all skills
+    all_skills = set(data.skills_list)
+    for j in data.jobs: all_skills.update(j.skills)
+    for p in data.projects: all_skills.update(p.skills)
 
-    files = [os.path.join(folder, f) for f in os.listdir(folder) if f.lower().endswith((".pdf", ".docx"))]
-    results = []
-
-    print(f"\nProcessing {len(files)} resumes with Grouped Skill Logic...")
-
-    for f_path in tqdm(files, desc="Processing"):
-        text = extract_text(f_path)
-        data = analyze_resume_v4(text)
-        if not data: continue
-
-        # Compute Experience Breakdown
-        ft_months = merge_intervals([i for i in [get_job_interval(j) for j in data.jobs if j.type != "Internship"] if i])
-        int_months = merge_intervals([i for i in [get_job_interval(j) for j in data.jobs if j.type == "Internship"] if i])
-        tot_exp_str = f"FT: {format_duration(ft_months)} | Intern: {format_duration(int_months)}"
-
-        # Skill Experience & Projects Calculation
-        skill_data_to_group = []
-        for skill in data.all_found_skills:
-            relevant_intervals = []
-            has_exp_mention = False
-            for j in data.jobs:
-                if any(skill.lower() == s.lower() for s in j.skills):
-                    has_exp_mention = True
-                    interval = get_job_interval(j)
-                    if interval: relevant_intervals.append(interval)
-            
-            skill_months = merge_intervals(relevant_intervals)
-            # Zero-value fix: if mentioned but dates unclear, min 1 month
-            if has_exp_mention and skill_months == 0: skill_months = 1
-            
-            p_count = sum(1 for p in data.projects if any(skill.lower() == s.lower() for s in p.skills))
-            
-            skill_data_to_group.append({
-                'name': skill,
-                'months': skill_months,
-                'projects': p_count
-            })
-
-        skills_summary_grouped = group_skills_by_metrics(skill_data_to_group)
-
-        # Role History Formatting
-        role_lines = []
+    # Experience Calculations
+    skill_stats = []
+    for sn in all_skills:
+        relevant_ivs = []
+        mentioned_in_exp = False
         for j in data.jobs:
-            status = "Present" if j.end_date.lower() == "present" else "Past"
-            job_iv = get_job_interval(j)
-            job_months = merge_intervals([job_iv]) if job_iv else 0
-            role_lines.append(f"{j.role} - {status} (YOE {format_duration(job_months)})")
-        roles_summary = "\n".join(role_lines) if role_lines else "-"
+            if any(sn.lower() == s.lower() for s in j.skills):
+                mentioned_in_exp = True
+                iv = get_interval(j)
+                if iv: relevant_ivs.append(iv)
+        
+        m_sum = merge_intervals(relevant_ivs)
+        if mentioned_in_exp and m_sum == 0: m_sum = 1
+        
+        p_count = sum(1 for p in data.projects if any(sn.lower() == s.lower() for s in p.skills))
+        if p_count == 0 and any(sn.lower() == s.lower() for p in data.projects for s in p.skills):
+            p_count = 1
+            
+        skill_stats.append({'name': sn, 'months': m_sum, 'projects': p_count})
 
-        # Format Details for other columns
-        exp_details = [f"[{j.type}] {j.role} at {j.company} ({j.start_date} to {j.end_date})" for j in data.jobs]
-        proj_details = [f"Project: {p.name}\nDesc: {p.description}" for p in data.projects]
+    grouped_skills = group_skills_by_metrics(skill_stats)
 
-        row = {
-            "Date Entry": datetime.today().strftime("%Y-%m-%d"),
-            "Date of Interview": "-",
-            "Candidate Name": data.name or "-",
-            "Email": data.email or "-",
-            "Phone": data.phone or "-",
-            "Location": data.location or "-",
-            "LinkedIn": data.linkedin or "-",
-            "Current Title": roles_summary,
-            "Work Experience (Years & Months)": tot_exp_str,
-            "Last Graduation Date": data.last_graduation_date or "-",
-            "First Job Start Date": data.first_job_start_date or "-",
-            "Profile Gap (Months)": "-", 
-            "Skills (Experience + No. of Projects)": skills_summary_grouped,
-            "Work Experience Details (Years, Role, Skills, Tech)": "\n\n".join(exp_details) if exp_details else "-",
-            "Projects (Title, Technologies, Skills)": "\n\n".join(proj_details) if proj_details else "-",
-            "Rating": "-",
-            "Notice Period": "-",
-            "CTC": "-",
-            "Recommendation": "-",
-            "Comments": "-"
-        }
-        results.append(row)
+    # Role History
+    role_lines = []
+    sorted_jobs = sorted(data.jobs, key=lambda x: safe_parse_date(x.start_date) or datetime.min, reverse=True)
+    for j in sorted_jobs:
+        status = "Present" if j.end_date.lower() == "present" else "Past"
+        months = merge_intervals([i for i in [get_interval(j)] if i])
+        role_lines.append(f"{j.role} - {status} ({format_duration(months)})")
 
+    ft_m = merge_intervals([i for i in [get_interval(j) for j in data.jobs if j.type != "Internship"] if i])
+    in_m = merge_intervals([i for i in [get_interval(j) for j in data.jobs if j.type == "Internship"] if i])
+
+    return {
+        "Date Entry": datetime.today().strftime("%Y-%m-%d"),
+        "Candidate Name": data.name or "-",
+        "Email": data.email or "-",
+        "Phone": data.phone or "-",
+        "LinkedIn": li,
+        "Current Title": "\n".join(role_lines) or "-",
+        "Total Experience": f"FT: {format_duration(ft_m)} | Int: {format_duration(in_m)}",
+        "Skills Summary": grouped_skills,
+        "Last Graduation": data.last_graduation_date or "-",
+        "Location": data.location or "-"
+    }
+
+def run_analysis_folder(folder_path):
+    if not os.path.isdir(folder_path): return None
+    files = [os.path.join(folder_path, f) for f in os.listdir(folder_path) if f.lower().endswith((".pdf", ".docx"))]
+    results = []
+    for f in tqdm(files):
+        res = process_single_resume(f)
+        if res: results.append(res)
+    
     if results:
-        out = f"analyzed_resumes_grouped_{datetime.now().strftime('%H%M%S')}.xlsx"
+        out = f"analysis_{datetime.now().strftime('%H%M%S')}.xlsx"
         pd.DataFrame(results).to_excel(out, index=False)
-        print(f"\nDone! Saved to {out}")
+        return out, results
+    return None, None
 
 if __name__ == "__main__":
-    main()
+    path = input("Folder Path: ").strip()
+    of, _ = run_analysis_folder(path)
+    if of: print(f"Saved to {of}")
