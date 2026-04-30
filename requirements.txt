@@ -7,4 +7,3 @@ instructor
 pydantic
 python-dotenv
 tqdm
-numpy
