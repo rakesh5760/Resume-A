@@ -213,7 +213,9 @@ def process_single_resume(f_path):
         "Total Experience": f"FT: {format_duration(ft_m)} | Int: {format_duration(in_m)}",
         "Skills Summary": grouped_skills,
         "Last Graduation": data.last_graduation_date or "-",
-        "Location": data.location or "-"
+        "Location": data.location or "-",
+        "View Resume": f'=HYPERLINK("{os.path.abspath(f_path)}", "OPEN")',
+        "Resume Path": os.path.abspath(f_path)
     }
 
 def run_analysis_folder(folder_path):

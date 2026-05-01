@@ -131,6 +131,12 @@ function renderResults(results) {
             <td style="white-space: pre-line; font-size: 0.9rem; color: var(--text-muted);">${res['Current Title']}</td>
             <td style="white-space: pre-line; font-size: 0.9rem;">${res['Skills Summary']}</td>
             <td style="font-weight: 600; color: var(--accent);">${res['Total Experience']}</td>
+            <td>
+                <button onclick="window.open('${BASE_URL}/view?path=${encodeURIComponent(res['Resume Path'])}', '_blank')" 
+                        style="padding: 0.5rem 1rem; border-radius: 8px; background: rgba(99,102,241,0.2); border: 1px solid var(--primary); color: white; cursor: pointer;">
+                    OPEN
+                </button>
+            </td>
         `;
         resultsTableBody.appendChild(tr);
     });

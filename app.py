@@ -63,8 +63,9 @@ def analyze():
                 }
                 yield f"data: {json.dumps(progress_data)}\n\n"
             finally:
-                if should_delete and os.path.exists(f_path):
-                    os.remove(f_path)
+                pass # Do not delete files so they can be viewed in the UI
+                # if should_delete and os.path.exists(f_path):
+                #     os.remove(f_path)
 
         # Master Report Logic
         new_df = pd.DataFrame(results)
@@ -91,6 +92,13 @@ def analyze():
 @app.route('/download/<filename>')
 def download(filename):
     return send_file(filename, as_attachment=True)
+
+@app.route('/view')
+def view_resume():
+    path = request.args.get('path')
+    if path and os.path.exists(path):
+        return send_file(path)
+    return "File not found", 404
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
