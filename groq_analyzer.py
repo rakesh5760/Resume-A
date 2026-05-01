@@ -115,10 +115,21 @@ def extract_text(file_path):
     try:
         if ext == ".pdf":
             with pdfplumber.open(file_path) as pdf:
-                for page in pdf.pages: text += (page.extract_text() or "") + "\n"
+                for page in pdf.pages: 
+                    text += (page.extract_text() or "") + "\n"
+                    # Extract hidden hyperlinks in PDF
+                    if page.hyperlinks:
+                        for hl in page.hyperlinks:
+                            uri = hl.get("uri")
+                            if uri:
+                                text += f"\n[Hidden Link Found: {uri}]\n"
         elif ext == ".docx":
             doc = Document(file_path)
             text = "\n".join([pa.text for pa in doc.paragraphs])
+            # Extract hidden hyperlinks in DOCX
+            for rel in doc.part.rels.values():
+                if "hyperlink" in rel.reltype:
+                    text += f"\n[Hidden Link Found: {rel.target_ref}]\n"
     except Exception as e:
         print(f"Read error {file_path}: {e}")
     return text.strip()
