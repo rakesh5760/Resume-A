@@ -23,9 +23,9 @@ if not GROQ_API_KEY:
 # Initialize instructor client
 client = instructor.from_groq(Groq(api_key=GROQ_API_KEY), mode=instructor.Mode.TOOLS)
 
-# =========================
+# ==========================
 # 1. Pydantic Data Models
-# =========================
+# ==========================
 
 class JobEntry(BaseModel):
     role: str = Field(description="Role title")
