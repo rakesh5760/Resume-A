@@ -54,9 +54,9 @@ class ResumeDataV5(BaseModel):
     jobs: List[JobEntry] = Field(default_factory=list)
     projects: List[ProjectEntry] = Field(default_factory=list)
 
-# =========================
+# ============================
 # 2. Robust Calculation Logic
-# =========================
+# ============================
 
 def safe_parse_date(date_str):
     if not date_str: return None
