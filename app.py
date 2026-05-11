@@ -78,6 +78,10 @@ def analyze():
         else:
             combined_df = new_df
             
+        # Clean up legacy 'View Resume' column if it exists in the master report
+        if 'View Resume' in combined_df.columns:
+            combined_df.drop(columns=['View Resume'], inplace=True)
+            
         combined_df.to_excel(MASTER_REPORT, index=False)
         
         final_data = {

@@ -214,7 +214,6 @@ def process_single_resume(f_path):
         "Skills Summary": grouped_skills,
         "Last Graduation": data.last_graduation_date or "-",
         "Location": data.location or "-",
-        "View Resume": f'=HYPERLINK("{os.path.abspath(f_path)}", "OPEN")',
         "Resume Path": os.path.abspath(f_path)
     }
 
