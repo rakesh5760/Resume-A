@@ -5,6 +5,7 @@ import groq_analyzer
 import json
 import pandas as pd
 from datetime import datetime
+from collections import Counter
 
 app = Flask(__name__, static_folder='static', static_url_path='')
 CORS(app)
@@ -103,6 +104,60 @@ def view_resume():
     if path and os.path.exists(path):
         return send_file(path)
     return "File not found", 404
+
+@app.route('/api/dashboard', methods=['GET'])
+def dashboard_data():
+    if not os.path.exists(MASTER_REPORT):
+        return jsonify({"success": False, "error": "No data available. Process some resumes first."}), 404
+        
+    try:
+        df = pd.read_excel(MASTER_REPORT)
+        candidates = []
+        
+        for index, row in df.iterrows():
+            # 1. Parse Skills
+            skills = []
+            if 'Skills Summary' in df.columns and pd.notna(row['Skills Summary']) and row['Skills Summary'] != '-':
+                lines = str(row['Skills Summary']).split('\n')
+                for line in lines:
+                    parts = line.split(' – ')
+                    if parts:
+                        skill_names = [s.strip() for s in parts[0].split(',') if s.strip()]
+                        skills.extend(skill_names)
+            
+            # 2. Parse Experience
+            exp_level = "Unknown"
+            if 'Total Experience' in df.columns and pd.notna(row['Total Experience']):
+                exp = str(row['Total Experience'])
+                if "FT:" in exp:
+                    ft_part = exp.split('|')[0].replace('FT:', '').strip()
+                    y_str = ft_part.split('y')[0].strip()
+                    try:
+                        years = int(y_str)
+                        if years < 1: exp_level = "Entry (<1y)"
+                        elif years <= 3: exp_level = "Mid (1-3y)"
+                        else: exp_level = "Senior (3y+)"
+                    except:
+                        pass
+                        
+            # 3. Parse Location
+            loc = "Unknown"
+            if 'Location' in df.columns and pd.notna(row['Location']) and str(row['Location']).strip() != '-':
+                loc = str(row['Location']).strip()
+                
+            candidates.append({
+                "id": index,
+                "skills": skills,
+                "experience": exp_level,
+                "location": loc
+            })
+            
+        return jsonify({
+            "success": True,
+            "candidates": candidates
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

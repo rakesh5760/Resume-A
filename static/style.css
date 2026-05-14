@@ -201,3 +201,112 @@ td {
     from { opacity: 0; transform: translateY(-20px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Dashboard Filter UI */
+.filter-bar {
+    display: flex;
+    gap: 1.5rem;
+    align-items: flex-end;
+    background: rgba(255, 255, 255, 0.02);
+    padding: 1.5rem;
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-group label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.custom-select {
+    position: relative;
+    user-select: none;
+}
+
+.select-selected {
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 0.8rem 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.95rem;
+    transition: border-color 0.2s;
+}
+
+.select-selected:hover {
+    border-color: var(--primary);
+}
+
+.select-items {
+    position: absolute;
+    background: rgba(30, 41, 59, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    top: 110%;
+    left: 0;
+    right: 0;
+    z-index: 99;
+    border-radius: 10px;
+    max-height: 250px;
+    overflow-y: auto;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+}
+
+.select-hide {
+    display: none;
+}
+
+.select-items div {
+    padding: 0.7rem 1rem;
+    cursor: pointer;
+    font-size: 0.9rem;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.select-items div:hover {
+    background: rgba(99, 102, 241, 0.2);
+}
+
+.select-items input[type="checkbox"] {
+    accent-color: var(--primary);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+}
+
+.clear-btn {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 0.8rem 1.5rem;
+    display: flex;
+    align-items: center;
+    border-radius: 10px;
+    box-shadow: none;
+}
+
+.clear-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+    transform: none;
+}

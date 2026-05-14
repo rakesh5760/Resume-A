@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -18,6 +19,10 @@
             </div>
             <h1>Resume Analyzer<span style="color: #6366f1;">.</span>IO</h1>
             <p class="subtitle">Precision-driven career intelligence powered by Groq & Llama-3.3</p>
+            <div style="margin-top: 1.5rem;">
+                <button id="navAnalyzerBtn" style="background: rgba(99,102,241,0.2); border: 1px solid var(--primary); margin-right: 10px;">Analyzer</button>
+                <button id="navDashboardBtn" style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);">Dashboard</button>
+            </div>
         </header>
 
         <main class="glass-card">
@@ -90,6 +95,55 @@
                     </table>
                 </div>
             </div>
+
+            <!-- Dashboard Section -->
+            <div id="dashboardSection" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                    <h2 style="font-weight: 800; font-size: 1.8rem; margin: 0;">Global Talent Analytics</h2>
+                </div>
+
+                <!-- Slicer Bar -->
+                <div class="filter-bar">
+                    <div class="filter-group">
+                        <label>Skills</label>
+                        <div class="custom-select">
+                            <div class="select-selected" id="skillsDropdownBtn">Select Skills... <i data-lucide="chevron-down" style="width:16px; height:16px;"></i></div>
+                            <div class="select-items select-hide" id="skillsList"></div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Experience</label>
+                        <div class="custom-select">
+                            <div class="select-selected" id="expDropdownBtn">Select Experience... <i data-lucide="chevron-down" style="width:16px; height:16px;"></i></div>
+                            <div class="select-items select-hide" id="expList"></div>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label>Location</label>
+                        <div class="custom-select">
+                            <div class="select-selected" id="locDropdownBtn">Select Location... <i data-lucide="chevron-down" style="width:16px; height:16px;"></i></div>
+                            <div class="select-items select-hide" id="locList"></div>
+                        </div>
+                    </div>
+                    <button id="clearFiltersBtn" class="clear-btn"><i data-lucide="filter-x" style="width:16px; height:16px; margin-right:5px;"></i> Clear</button>
+                </div>
+
+                <div class="stats-grid" style="grid-template-columns: 1fr 1fr;">
+                    <div class="stat-card" style="grid-column: span 2;">
+                        <h3 style="color: var(--text-muted); margin-top: 0;">Top Skills Demand</h3>
+                        <canvas id="skillsChart" style="max-height: 300px;"></canvas>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: var(--text-muted); margin-top: 0;">Experience Distribution</h3>
+                        <canvas id="expChart" style="max-height: 250px;"></canvas>
+                    </div>
+                    <div class="stat-card">
+                        <h3 style="color: var(--text-muted); margin-top: 0;">Candidate Locations</h3>
+                        <canvas id="locChart" style="max-height: 250px;"></canvas>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 

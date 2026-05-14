@@ -11,6 +11,10 @@ const countVal = document.getElementById('countVal');
 const downloadBtn = document.getElementById('downloadBtn');
 const resetBtn = document.getElementById('resetBtn');
 
+const navAnalyzerBtn = document.getElementById('navAnalyzerBtn');
+const navDashboardBtn = document.getElementById('navDashboardBtn');
+const dashboardSection = document.getElementById('dashboardSection');
+
 const progressContainer = document.getElementById('progressContainer');
 const progressBar = document.getElementById('progressBar');
 const progressText = document.getElementById('progressText');
@@ -166,3 +170,233 @@ function stopLoading() {
     }, 1000);
     analyzeBtn.disabled = false;
 }
+
+// Dashboard Logic
+let skillsChartInstance = null;
+let expChartInstance = null;
+let locChartInstance = null;
+let rawCandidates = [];
+let activeFilters = { skills: new Set(), experience: new Set(), location: new Set() };
+
+navAnalyzerBtn.addEventListener('click', () => {
+    navAnalyzerBtn.style.background = 'rgba(99,102,241,0.2)';
+    navAnalyzerBtn.style.borderColor = 'var(--primary)';
+    navDashboardBtn.style.background = 'rgba(255,255,255,0.05)';
+    navDashboardBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+    
+    dashboardSection.style.display = 'none';
+    uploadModule.style.display = 'flex';
+    resultsSection.style.display = 'none';
+});
+
+navDashboardBtn.addEventListener('click', async () => {
+    navDashboardBtn.style.background = 'rgba(99,102,241,0.2)';
+    navDashboardBtn.style.borderColor = 'var(--primary)';
+    navAnalyzerBtn.style.background = 'rgba(255,255,255,0.05)';
+    navAnalyzerBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+    
+    uploadModule.style.display = 'none';
+    resultsSection.style.display = 'none';
+    progressContainer.style.display = 'none';
+    dashboardSection.style.display = 'block';
+    
+    await loadDashboardData();
+});
+
+async function loadDashboardData() {
+    try {
+        const response = await fetch(`${BASE_URL}/api/dashboard`);
+        const data = await response.json();
+        
+        if (data.success) {
+            rawCandidates = data.candidates;
+            setupFilters();
+            applyFilters();
+        } else {
+            alert(data.error);
+            navAnalyzerBtn.click(); // Revert back if no data
+        }
+    } catch (err) {
+        console.error(err);
+        alert('Failed to load dashboard data.');
+        navAnalyzerBtn.click();
+    }
+}
+
+// Slicer UI Interactions
+document.querySelectorAll('.select-selected').forEach(btn => {
+    btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        const list = this.nextElementSibling;
+        const isHidden = list.classList.contains('select-hide');
+        document.querySelectorAll('.select-items').forEach(el => el.classList.add('select-hide'));
+        if (isHidden) list.classList.remove('select-hide');
+    });
+});
+document.addEventListener('click', () => {
+    document.querySelectorAll('.select-items').forEach(el => el.classList.add('select-hide'));
+});
+document.querySelectorAll('.select-items').forEach(list => {
+    list.addEventListener('click', e => e.stopPropagation());
+});
+
+document.getElementById('clearFiltersBtn').addEventListener('click', () => {
+    activeFilters.skills.clear();
+    activeFilters.experience.clear();
+    activeFilters.location.clear();
+    document.querySelectorAll('.select-items input').forEach(cb => cb.checked = false);
+    applyFilters();
+});
+
+function setupFilters() {
+    const allSkills = new Set();
+    const allExp = new Set();
+    const allLoc = new Set();
+    
+    rawCandidates.forEach(c => {
+        c.skills.forEach(s => allSkills.add(s));
+        allExp.add(c.experience);
+        allLoc.add(c.location);
+    });
+    
+    populateDropdown('skillsList', Array.from(allSkills).sort(), 'skills');
+    populateDropdown('expList', Array.from(allExp).sort(), 'experience');
+    populateDropdown('locList', Array.from(allLoc).sort(), 'location');
+}
+
+function populateDropdown(containerId, items, filterType) {
+    const container = document.getElementById(containerId);
+    container.innerHTML = '';
+    items.forEach(item => {
+        const div = document.createElement('div');
+        div.innerHTML = `<input type="checkbox" value="${item}"> <span>${item}</span>`;
+        const cb = div.querySelector('input');
+        div.addEventListener('click', (e) => {
+            if (e.target !== cb) cb.checked = !cb.checked;
+            if (cb.checked) activeFilters[filterType].add(item);
+            else activeFilters[filterType].delete(item);
+            applyFilters();
+        });
+        container.appendChild(div);
+    });
+}
+
+function applyFilters() {
+    let filtered = rawCandidates;
+    
+    // Slicer OR logic for Skills (candidate has ANY of selected skills)
+    if (activeFilters.skills.size > 0) {
+        filtered = filtered.filter(c => c.skills.some(s => activeFilters.skills.has(s)));
+    }
+    // Slicer OR logic for Experience (candidate has ANY of selected experience levels)
+    if (activeFilters.experience.size > 0) {
+        filtered = filtered.filter(c => activeFilters.experience.has(c.experience));
+    }
+    // Slicer OR logic for Location
+    if (activeFilters.location.size > 0) {
+        filtered = filtered.filter(c => activeFilters.location.has(c.location));
+    }
+    
+    // Re-Aggregate
+    const skillsCount = {};
+    const expCount = {};
+    const locCount = {};
+    
+    filtered.forEach(c => {
+        c.skills.forEach(s => skillsCount[s] = (skillsCount[s] || 0) + 1);
+        expCount[c.experience] = (expCount[c.experience] || 0) + 1;
+        locCount[c.location] = (locCount[c.location] || 0) + 1;
+    });
+    
+    const sortedSkills = Object.entries(skillsCount).sort((a,b) => b[1] - a[1]).slice(0,10);
+    const sortedLoc = Object.entries(locCount).sort((a,b) => b[1] - a[1]).slice(0,5);
+    
+    const aggregated = {
+        skills: { labels: sortedSkills.map(i=>i[0]), data: sortedSkills.map(i=>i[1]) },
+        experience: { labels: Object.keys(expCount), data: Object.values(expCount) },
+        locations: { labels: sortedLoc.map(i=>i[0]), data: sortedLoc.map(i=>i[1]) }
+    };
+    
+    renderCharts(aggregated);
+}
+
+function renderCharts(data) {
+    const primaryColor = '#6366f1';
+    const accentColor = '#10b981';
+    const textMuted = '#94a3b8';
+    
+    // Skills Chart
+    const skillsCtx = document.getElementById('skillsChart').getContext('2d');
+    if (skillsChartInstance) skillsChartInstance.destroy();
+    skillsChartInstance = new Chart(skillsCtx, {
+        type: 'bar',
+        data: {
+            labels: data.skills.labels,
+            datasets: [{
+                label: 'Candidate Count',
+                data: data.skills.data,
+                backgroundColor: primaryColor,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: textMuted } },
+                x: { grid: { display: false }, ticks: { color: textMuted } }
+            },
+            plugins: { legend: { display: false } },
+            animation: { duration: 400 }
+        }
+    });
+
+    // Experience Chart
+    const expCtx = document.getElementById('expChart').getContext('2d');
+    if (expChartInstance) expChartInstance.destroy();
+    expChartInstance = new Chart(expCtx, {
+        type: 'doughnut',
+        data: {
+            labels: data.experience.labels,
+            datasets: [{
+                data: data.experience.data,
+                backgroundColor: [primaryColor, accentColor, '#8b5cf6'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'right', labels: { color: textMuted } } },
+            animation: { duration: 400 }
+        }
+    });
+
+    // Location Chart
+    const locCtx = document.getElementById('locChart').getContext('2d');
+    if (locChartInstance) locChartInstance.destroy();
+    locChartInstance = new Chart(locCtx, {
+        type: 'bar',
+        data: {
+            labels: data.locations.labels,
+            datasets: [{
+                label: 'Candidate Count',
+                data: data.locations.data,
+                backgroundColor: accentColor,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)' }, ticks: { color: textMuted } },
+                y: { grid: { display: false }, ticks: { color: textMuted } }
+            },
+            plugins: { legend: { display: false } },
+            animation: { duration: 400 }
+        }
+    });
+}
+
